@@ -26,6 +26,9 @@ include(AICxxSubmodules)
 add_executable(fastprimes6 fastprimes6.cxx)
 target_link_libraries(fastprimes6 PRIVATE ${AICXX_OBJECTS_LIST})
 
+add_executable(fastprimes7 fastprimes7.cxx)
+target_link_libraries(fastprimes7 PRIVATE ${AICXX_OBJECTS_LIST})
+
 # Add executable target from table.cpp.
 add_executable(table_executable table.cpp)
 

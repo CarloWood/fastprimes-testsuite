@@ -1,3 +1,6 @@
+This README goes with fastprimes5.cc
+====================================
+
   ____ offset relative to previous candidate.
  |   _ candidates (non-primes are put between parenthesis).
  |  |

@@ -120,6 +120,8 @@ class Sieve
   integer_t factor_base_;
   integer_t primorial_;
   integer_t expected_failure_;
+  integer_t my_prime_squared_;
+  std::vector<prime_gap_t> gaps_;
 #ifdef CWDEBUG
   prime_t debug_lower_bound_;
   prime_t debug_upper_bound_;
@@ -190,81 +192,8 @@ class Sieve
   //                      +6    (+6)
   //               ?53    53    (53)
   //                      +6    (+6)
-  //               ?59    59    (59)
-  //                      +2    (+2)
-  //               ?61    61    (61)
-  //                      +6    (+6)
-  //               ?67    67    (67)
-  //                      +4    (+4)
-  //               ?71    71    (71)
-  //                      +2    (+2)
-  //               ?73    73    (73)
-  //               ?77 <7*11>
-  //                      +6    (+6)
-  //               ?79    79    (79)
-  //                      +4    (+4)
-  //               ?83    83    (83)
-  //                      +6    (+6)
-  //               ?89    89    (89)
-  //               ?91 <7*13>
-  //                      +8    (+8)
-  //               ?97    97    (97)
-  //                      +4    (+4)
-  //              ?101   101   (101)
-  //                      +2    (+2)
-  //              ?103   103   (103)
-  //                      +4    (+4)
-  //              ?107   107   (107)
-  //                      +2    (+2)
-  //              ?109   109   (109)
-  //                      +4    (+4)
-  //              ?113   113   (113)
-  //              ?119 <7*17>
-  //              ?121  ?121 <11*11>
-  //                +6    +6    +14
-  //              ?127  ?127    127
-  //                +4    +4     +4
-  //              ?131  ?131    131
-  //                +6    +6     +6
-  //              ?137  ?137    137
-  //                +2    +2     +2
-  //              ?139  ?139    139
-  //                +4    +4
-  //              ?143  ?143 <11*13>
-  //                +6    +6    +10
-  //              ?149  ?149    149
-  //                +2    +2     +2
-  //              ?151  ?151    151
-  //                +6    +6     +6
-  //              ?157  ?157    157
-  //                +6    +6     +6
-  //              ?163  ?163    163
-  //                +4    +4     +4
-  //              ?167  ?167    167
-  //                +2    +2     +2
-  //              ?169  ?169    169
-  //                +4    +4     +4
-  //              ?173  ?173    173
-  //                +6    +6     +6
-  //              ?179  ?179    179
-  //                +2    +2     +2
-  //              ?181  ?181    181
-  //                +6    +6
-  //              ?187  ?187 <11*17>
-  //                +4    +4    +10
-  //              ?191  ?191    191
-  //                +2    +2     +2
-  //              ?193  ?193    193
-  //                +4    +4     +4
-  //              ?197  ?197    197
-  //                +2    +2     +2
-  //              ?199  ?199    199
-  //               +10   +10
-  //              ?209  ?209 <11*19>
-  //                +2    +2    +12
-  //              ?211  ?211    211
-  //               +10   +10    +10
-  //              ?221  ?221    221
+  //
+  // Type 'make table' for a larger list.
 
   Sieve(Sieve* prev_sieve) :
     primes_(prev_sieve->primes()),
@@ -355,12 +284,15 @@ class Sieve
     {
       Dout(dc::notice, "Initial run!");
       base_ = primorial_;
+      // Maybe this is the only entry.
       if (next - primes_->p(begin_) == primorial_)
       {
         Dout(dc::notice, "Finished repeat! Setting expected_failure_ to zero.");
         expected_failure_ = 0;
       }
       Debug(debug_returning(next));
+      my_prime_squared_ = primes_->p(begin_) * primes_->p(begin_);
+      assert(next < my_prime_squared_);
       return next;
     }
 
@@ -380,6 +312,7 @@ class Sieve
       }
     }
     Debug(debug_returning(next));
+    gaps_.push_back(next);
     return next;
   }
 
