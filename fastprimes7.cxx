@@ -7,7 +7,6 @@
 #include <cstdint>
 #include <cstring>
 #include <vector>
-#include <cassert>
 #include <limits>
 #include <climits>
 #include <new>
@@ -100,7 +99,6 @@ constexpr std::array<int, compression_repeat> row0 = calc_row0();
 
 prime_t sieve_index_to_prime(int row, int column)
 {
-  assert(column < row0.size());
   return row * compression_primorial + row0[column];
 }
 
@@ -143,7 +141,7 @@ constexpr sieve_word_t partial_mask = ~sieve_word_t{0} << unused_bits;
 uint32_t calc_upper_bound_number_of_primes(integer_t n)
 {
   double logn = std::log(n);
-  assert(logn > 4);
+  ASSERT(logn > 4);
   return std::exp(0.3125 * std::pow(1 / (logn - 4), 1.655) + logn - std::log(logn - 1)) - 4;
 }
 
@@ -153,9 +151,7 @@ void debug_init_primes()
 {
   std::ifstream ifs("primes_till_1000000000", std::ios::binary);
   if (!ifs.is_open()) {
-    std::cerr << "Failed to open file primes_till_1000000000 for reading." << std::endl;
-    assert(false);
-    return;
+    DoutFatal(dc::fatal, "Failed to open file primes_till_1000000000 for reading.");
   }
 
   // Read the size of the vector first.
@@ -168,13 +164,20 @@ void debug_init_primes()
 
   ifs.close();
 }
-#endif
 
 #define STORE_PRIME do { \
   result[pi] = prime; \
   ASSERT(prime == debug_primes[pi]); \
   ++pi; \
 } while(0)
+
+#else // CWDEBUG
+
+#define STORE_PRIME do { \
+  result[pi++] = prime; \
+} while(0)
+
+#endif // CWDEBUG
 
 // Returns all primes less than or equal max_value.
 std::vector<prime_t> calculate_primes(uint64_t max_value)
@@ -212,7 +215,7 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
   }
 
   integer_t const sqrt_max_value = std::sqrt(max_value);
-  assert(sqrt_max_value >= compression_first_prime_second_row);
+  ASSERT(sqrt_max_value >= compression_first_prime_second_row);
 
   // sieve is a one dimensional vector, but can best be throught of as a two dimensional
   // table with width compression_repeat.
@@ -378,13 +381,14 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
                word_index += word_step)
           {
             sieve[word_index] &= ~col_mask;
-
+#ifdef CWDEBUG
             int debug_row = word_index / words_per_row;
             int debug_col = (word_index % words_per_row) * sieve_word_bits + (col % sieve_word_bits);
             prime_t debug_prime = sieve_index_to_prime(debug_row, debug_col);
-            assert(debug_col == col);
-            assert(debug_prime % prime == 0);
+            ASSERT(debug_col == col);
+            ASSERT(debug_prime % prime == 0);
 //            Dout(dc::notice, "Loop1: setting " << debug_prime << " to 0 because it is " << (debug_prime / prime) << " * " << prime);
+#endif
           }
         }
       }
@@ -406,7 +410,7 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
       if ((*next_word & column_mask))
       {
         prime = sieve_index_to_prime(row, column);
-        assert(prime > compression_primorial);
+        ASSERT(prime > compression_primorial);
 
         STORE_PRIME;
 
@@ -418,19 +422,6 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
 
         for (int col = 0; col < compression_repeat; ++col)
         {
-#if 0
-          long debug_prime = prime;
-          long debug_row0 = row0[col];
-          long debug_inverse = compression_primorial_inverse;
-          long debug_multiple_index = prime - row0[col];
-          assert(0 <= debug_multiple_index && debug_multiple_index < prime);
-          debug_multiple_index *= debug_inverse;
-          assert(debug_multiple_index <= std::numeric_limits<int>::max());
-          debug_multiple_index %= debug_prime;
-          debug_multiple_index *= compression_repeat;
-          debug_multiple_index += col;
-          assert(debug_multiple_index <= std::numeric_limits<int>::max());
-#endif
           // In this loop prime >= row0[col] so we can simply subtract row0 from prime.
           int first_row_with_prime_multiple = ((prime - row0[col]) * compression_primorial_inverse) % prime;
           int col_word_offset = col / sieve_word_bits;
@@ -441,13 +432,14 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
                word_index += word_step)
           {
             sieve[word_index] &= ~col_mask;
-
+#ifdef CWDEBUG
             int debug_row = word_index / words_per_row;
             int debug_col = (word_index % words_per_row) * sieve_word_bits + (col % sieve_word_bits);
             prime_t debug_prime = sieve_index_to_prime(debug_row, debug_col);
-            assert(debug_col == col);
-            assert(debug_prime % prime == 0);
+            ASSERT(debug_col == col);
+            ASSERT(debug_prime % prime == 0);
 //            Dout(dc::notice, "Loop2: setting " << debug_prime << " to 0 because it is " << (debug_prime / prime) << " * " << prime);
+#endif
           }
         }
       }
@@ -503,7 +495,7 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
 
   std::free(sieve);
 
-  assert(pi <= upper_bound_number_of_primes); // Make sure it didn't overflow.
+  ASSERT(pi <= upper_bound_number_of_primes); // Make sure it didn't overflow.
 
   result.resize(pi);
   return result;
