@@ -22,33 +22,37 @@ int modInverse(int n, int N)
 int main()
 {
   std::array<int, 8> fr = { 7, 11, 13, 17, 19, 23, 29, 31 };
+  std::array<char, 8> cr = { '!', '@', '#', '$', '%', '^', '&', '*' };
 
   int offset = 0;
-  int const N = 13;
-  int const M = 17;
   int const vo = 2 * 3 * 5;
-  int const voi = modInverse(vo, N);
-  for (int r = 0; r < vo; ++r)
+  std::array<int, 8> voi;
+  for (int col = 0; col < 8; ++col)
+  {
+    int N = fr[col];
+    voi[col] = modInverse(vo, N);
+  }
+  for (int r = 0; r <= 333; ++r)
   {
     std::cout << std::setw(2) << r << " : ";
     for (int n : fr)
     {
-      int pr = (-n * voi) % N;
       std::cout << '|';
-      if ((offset + n) % N == 0)
+      std::string crs;
+      for (int col = 7; col >= 0; --col)
       {
-        assert((pr - r) % N == 0);
-        std::cout << '!';
+        int N = fr[col];
+        int pr = (-n * voi[col]) % N;
+        if ((offset + n) % N == 0)
+        {
+          assert((pr - r) % N == 0);
+          crs += cr[col];
+        }
       }
-      else
-        std::cout << ' ';
-      if ((offset + n) % M == 0)
-        std::cout << '#';
-      else
-        std::cout << ' ';
-      std::cout << std::setw(3) << std::setfill(' ') << ((offset + n) /*% N*/);
+      std::cout << std::setw(3) << std::setfill(' ') << crs <<
+                   std::setw(3) << std::setfill(' ') << ((offset + n));
     }
     offset += vo;
-    std::cout << std::endl;
+    std::cout << '|' << std::endl;
   }
 }
