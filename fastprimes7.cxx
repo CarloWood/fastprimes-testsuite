@@ -97,7 +97,7 @@ constexpr std::array<int, compression_repeat> calc_row0()
 
 constexpr std::array<int, compression_repeat> row0 = calc_row0();
 
-prime_t sieve_index_to_prime(int row, int column)
+inline prime_t sieve_row_column_to_prime(int row, int column)
 {
   return row * compression_primorial + row0[column];
 }
@@ -164,19 +164,6 @@ void debug_init_primes()
 
   ifs.close();
 }
-
-#define STORE_PRIME do { \
-  result[pi] = prime; \
-  ASSERT(prime == debug_primes[pi]); \
-  ++pi; \
-} while(0)
-
-#else // CWDEBUG
-
-#define STORE_PRIME do { \
-  result[pi++] = prime; \
-} while(0)
-
 #endif // CWDEBUG
 
 // Returns all primes less than or equal max_value.
@@ -193,7 +180,8 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
   for (; pi < compression;)
   {
     prime_t prime = small_primes[pi];
-    STORE_PRIME;
+    ASSERT(prime == debug_primes[pi]);
+    result[pi++] = prime;
   }
 
   // Calculate how many integers are not divisible by the first `compression` number of primes that are less than or equal max_value.
@@ -307,99 +295,108 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
   // prime in row 1 or larger (for example, in the case of the above table, with
   // compression = 3, the prime 31 is already larger than the compression_primorial=30,
   // but also 37, the first prime of row 1, is).
+  // The first loop deals with these primes (less than compression_primorial) using the
+  // fact that row=0, while the second loop makes use of the fact that each prime will
+  // be larger than compression_primorial.
 
-  int row = 0;
-  int column;
-  sieve_word_t column_mask = 1;
-  prime_t prime = 0;
-  for (;;)
+  // The sieve is a 1D array of words (of type sieve_word_t), having `words_per_row` words per row.
+  // For example, for compression = 6 and sieve_word_t = uint64_t, words_per_row = 90 and we
+  // can picture the sieve as:                         __ compression_repeat = 5760 (number of 'columns').
+  //                                                  /
+  //                                           55...55
+  //                           11  11...11     66...77
+  //             00...66  66...22  22...99 ... 99...55
+  //     column: 01...23  45...67  89...01     67...89
+  //     row=0: [word_00][word_01][word_02]...[word_89]
+  //     row=1: [word_90][word_91][word_92]...
+  //     row=2:                    010..00 <-- column_mask belonging to column 129.
+  //     ...    <--------2------->
+  //                      \__ column_word_offset = 2 (belonging to column 129) (called word_index for row 0).
+  //
+
+  // First do row 0.
+  prime_t prime;
+  int column = 0;
+  for (int word_index = 0; word_index < words_per_row; ++word_index)
   {
-    for (column = 0; column < compression_repeat; ++column)
+    for (sieve_word_t column_mask = 1; column_mask != 0; column_mask <<= 1, ++column)
     {
-      int column_word_offset = column / sieve_word_bits;
-      sieve_word_t* next_word = sieve + row * words_per_row + column_word_offset;
-      sieve_word_t column_mask = sieve_word_t{1} << (column % sieve_word_bits);
-      if ((*next_word & column_mask))
+      if ((sieve[word_index] & column_mask))
       {
-        prime = sieve_index_to_prime(row, column);
+        prime = sieve_row_column_to_prime(0, column);
 
-        if (prime > compression_primorial)
-          break;
-
-        STORE_PRIME;
+        ASSERT(prime == debug_primes[pi]);
+        result[pi++] = prime;
 
         int const word_step = words_per_row * prime;
         int const offset = compression_first_prime_second_row * prime;
         int compression_primorial_inverse = modular_inverse(compression_primorial, prime);
 
-        for (int col = 0; col < compression_repeat; ++col)
+        int col = 0;
+        for (int col_word_offset = 0; col_word_offset < words_per_row; ++col_word_offset)
         {
-          // The largest value of `offset - row0[col]` is when `offset` has its largest value
-          // and row0[col] is at its smallest. The latter happens when col = 0 (at which point
-          // row0[col] equals compression_first_prime). The former, `offset` at its largest,
-          // happens when `prime` is at its largest, which is `compression_first_prime_second_row`.
-          // Note that compression_first_prime_second_row = compression_first_prime + compression_primorial
-          //
-          // Let P = compression_primorial, F = compression_first_prime.
-          // Then compression_first_prime_second_row = P + F.
-          //
-          // And we can write for the largest values involved:
-          //   prime = P + F,
-          //   offset = (P + F) * (P + F);
-          //   -row0[col] = -F
-          //
-          // The largest possible value of compression_primorial_inverse is prime - 1, or P + F - 1.
-          //
-          // Thus the largest possible value of ((offset - row0[col]) * compression_primorial_inverse) is (less than or) equal
-          //
-          //   ((P + F)^2 - F) * (P + F - 1) =
-          //   (P^2 + 2 F P + F^2 - F) * (P + F - 1) =
-          //   P^3 + 2 F P^2 + F^2 P - F P + F P^2 + 2 F^2 P + F^3 - F^2 - P^2 - 2 F P - F^2 + F =
-          //   P^3 + (2F + F - 1) P^2 + (F^2 - F + 2 F^2 - 2F) P + (F^3 - F^2 - F^2 + F) =
-          //   P^3 + (3F - 1) P^2 + (3F^2 - 3F) P + (F^3 - 2 F^2 + F) < P^3 + 3 F P^2 + 3 F^2 P + F^3 = (P + F)^3
-          //
-          // which becomes larger than what fits in an int when P + F > 1290.
-          //  compression   P + F
-          //  2             2*3 + 5 = 11
-          //  3             2*3*5 + 7 = 37
-          //  4             2*3*5*7 + 11 = 221
-          //  5             2*3*5*7*11 + 13 = 2323
-          //
-          // This means that if compression_first_prime_second_row is larger than 1290 we need an extra modulo.
-
-          // Calculate the first row that has a multiple of this prime in colum `col`.
-          int first_row_with_prime_multiple = offset - row0[col];
-          if constexpr (compression_first_prime_second_row > 1290)
-            first_row_with_prime_multiple %= prime;
-          first_row_with_prime_multiple *= compression_primorial_inverse;
-          first_row_with_prime_multiple %= prime;
-          int col_word_offset = col / sieve_word_bits;
-          sieve_word_t col_mask  = sieve_word_t{1} << (col % sieve_word_bits);
-
-          for (int word_index = first_row_with_prime_multiple * words_per_row + col_word_offset;
-               word_index < sieve_size;
-               word_index += word_step)
+          for (sieve_word_t col_mask = 1; col_mask != 0; col_mask <<= 1, ++col)
           {
-            sieve[word_index] &= ~col_mask;
+            // The largest value of `offset - row0[col]` is when `offset` has its largest value
+            // and row0[col] is at its smallest. The latter happens when col = 0 (at which point
+            // row0[col] equals compression_first_prime). The former, `offset` at its largest,
+            // happens when `prime` is at its largest, which is `compression_first_prime_second_row`.
+            // Note that compression_first_prime_second_row = compression_first_prime + compression_primorial
+            //
+            // Let P = compression_primorial, F = compression_first_prime.
+            // Then compression_first_prime_second_row = P + F.
+            //
+            // And we can write for the largest values involved:
+            //   prime = P + F,
+            //   offset = (P + F) * (P + F);
+            //   -row0[col] = -F
+            //
+            // The largest possible value of compression_primorial_inverse is prime - 1, or P + F - 1.
+            //
+            // Thus the largest possible value of ((offset - row0[col]) * compression_primorial_inverse) is (less than or) equal
+            //
+            //   ((P + F)^2 - F) * (P + F - 1) =
+            //   (P^2 + 2 F P + F^2 - F) * (P + F - 1) =
+            //   P^3 + 2 F P^2 + F^2 P - F P + F P^2 + 2 F^2 P + F^3 - F^2 - P^2 - 2 F P - F^2 + F =
+            //   P^3 + (2F + F - 1) P^2 + (F^2 - F + 2 F^2 - 2F) P + (F^3 - F^2 - F^2 + F) =
+            //   P^3 + (3F - 1) P^2 + (3F^2 - 3F) P + (F^3 - 2 F^2 + F) < P^3 + 3 F P^2 + 3 F^2 P + F^3 = (P + F)^3
+            //
+            // which becomes larger than what fits in an int when P + F > 1290.
+            //  compression   P + F
+            //  2             2*3 + 5 = 11
+            //  3             2*3*5 + 7 = 37
+            //  4             2*3*5*7 + 11 = 221
+            //  5             2*3*5*7*11 + 13 = 2323
+            //
+            // This means that if compression_first_prime_second_row is larger than 1290 we need an extra modulo.
+
+            // Calculate the first row that has a multiple of this prime in colum `col`.
+            int first_row_with_prime_multiple = offset - row0[col];
+            if constexpr (compression_first_prime_second_row > 1290)
+              first_row_with_prime_multiple %= prime;
+            first_row_with_prime_multiple *= compression_primorial_inverse;
+            first_row_with_prime_multiple %= prime;
+
+            for (int wi = first_row_with_prime_multiple * words_per_row + col_word_offset; wi < sieve_size; wi += word_step)
+            {
+              sieve[wi] &= ~col_mask;
 #ifdef CWDEBUG
-            int debug_row = word_index / words_per_row;
-            int debug_col = (word_index % words_per_row) * sieve_word_bits + (col % sieve_word_bits);
-            prime_t debug_prime = sieve_index_to_prime(debug_row, debug_col);
-            ASSERT(debug_col == col);
-            ASSERT(debug_prime % prime == 0);
-//            Dout(dc::notice, "Loop1: setting " << debug_prime << " to 0 because it is " << (debug_prime / prime) << " * " << prime);
+              int debug_row = wi / words_per_row;
+              int debug_col = (wi % words_per_row) * sieve_word_bits + (col % sieve_word_bits);
+              prime_t debug_prime = sieve_row_column_to_prime(debug_row, debug_col);
+              ASSERT(debug_col == col);
+              ASSERT(debug_prime % prime == 0);
+    //            Dout(dc::notice, "Loop1: setting " << debug_prime << " to 0 because it is " << (debug_prime / prime) << " * " << prime);
 #endif
+            }
           }
         }
       }
     }
-    if (prime > compression_primorial)
-      break;
-    // Next row.
-    ++row;
-    column_mask = 1;
   }
 
+  int row = 1;
+  column = 0;
   for (;;)
   {
     for (; column < compression_repeat; ++column)
@@ -409,10 +406,11 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
       sieve_word_t column_mask = sieve_word_t{1} << (column % sieve_word_bits);
       if ((*next_word & column_mask))
       {
-        prime = sieve_index_to_prime(row, column);
+        prime = sieve_row_column_to_prime(row, column);
         ASSERT(prime > compression_primorial);
 
-        STORE_PRIME;
+        ASSERT(prime == debug_primes[pi]);
+        result[pi++] = prime;
 
         if (prime > sqrt_max_value)
           break;
@@ -435,7 +433,7 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
 #ifdef CWDEBUG
             int debug_row = word_index / words_per_row;
             int debug_col = (word_index % words_per_row) * sieve_word_bits + (col % sieve_word_bits);
-            prime_t debug_prime = sieve_index_to_prime(debug_row, debug_col);
+            prime_t debug_prime = sieve_row_column_to_prime(debug_row, debug_col);
             ASSERT(debug_col == col);
             ASSERT(debug_prime % prime == 0);
 //            Dout(dc::notice, "Loop2: setting " << debug_prime << " to 0 because it is " << (debug_prime / prime) << " * " << prime);
@@ -449,13 +447,12 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
     // Next row.
     ++row;
     column = 0;
-    column_mask = 1;
   }
 
   // Find the word containing the last prime that is less than or equal max_value.
   int last_word_index = sieve_size;
   while (sieve[--last_word_index] == 0 ||
-      sieve_index_to_prime(last_word_index / words_per_row, (last_word_index % words_per_row) * sieve_word_bits) > max_value)
+      sieve_row_column_to_prime(last_word_index / words_per_row, (last_word_index % words_per_row) * sieve_word_bits) > max_value)
     ;
   int last_row = last_word_index / words_per_row;
 
@@ -470,14 +467,14 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
       sieve_word_t column_mask = sieve_word_t{1} << (column % sieve_word_bits);
       if ((*next_word & column_mask))
       {
-        prime = sieve_index_to_prime(row, column);
-        STORE_PRIME;
+        prime = sieve_row_column_to_prime(row, column);
+        ASSERT(prime == debug_primes[pi]);
+        result[pi++] = prime;
       }
     }
     // Next row.
     ++row;
     column = 0;
-    column_mask = 1;
   }
   for (; column < compression_repeat; ++column)
   {
@@ -486,10 +483,11 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
     sieve_word_t column_mask = sieve_word_t{1} << (column % sieve_word_bits);
     if ((*next_word & column_mask))
     {
-      prime = sieve_index_to_prime(row, column);
+      prime = sieve_row_column_to_prime(row, column);
       if (prime > max_value)
         break;
-      STORE_PRIME;
+      ASSERT(prime == debug_primes[pi]);
+      result[pi++] = prime;
     }
   }
 
