@@ -12,6 +12,12 @@
 #include <new>
 #include "debug.h"
 
+#define USE_STOPWATCH 0
+
+#if USE_STOPWATCH
+#include "cwds/benchmark.h"
+#endif
+
 using prime_t = uint64_t;
 using integer_t = int64_t;
 using prime_index_t = int;
@@ -108,7 +114,6 @@ constexpr int words_per_row = (compression_repeat + sieve_word_bits - 1) / sieve
 constexpr int unused_bits = words_per_row * sieve_word_bits - compression_repeat;               // Number of unused bits at the end of a row.
 // It's too much work to support unused bits (and would needlessly slow down the algorithm).
 static_assert(unused_bits == 0);
-constexpr sieve_word_t partial_mask = ~sieve_word_t{0} << unused_bits;
 
 // Returns an upper bound on the number of primes that are smaller than or equal to n.
 // Just a random function that I thought matched quite well (for n > 1000 or so).
@@ -141,14 +146,33 @@ void debug_init_primes()
 }
 #endif // CWDEBUG
 
+#if USE_STOPWATCH
+int const cpu = benchmark::Stopwatch::cpu_any;          // The CPU to run Stopwatch on.
+double const cpu_frequency = 3612059050.0;              // In cycles per second.
+size_t const loopsize = 1000;
+size_t const minimum_of = 3;
+#endif
+
 // Returns all primes less than or equal max_value.
 std::vector<prime_t> calculate_primes(uint64_t max_value)
 {
+#if USE_STOPWATCH
+  benchmark::Stopwatch stopwatch(cpu);          // Declare stopwatch and configure on which CPU it must run.
+#endif
   Debug(debug_init_primes());
 
+#if USE_STOPWATCH
+  stopwatch.start();
+#endif
   // Pre-allocate the vector that is going to contain the primes.
   uint32_t upper_bound_number_of_primes = calc_upper_bound_number_of_primes(max_value);
   std::vector<prime_t> result(upper_bound_number_of_primes);
+#if USE_STOPWATCH
+  stopwatch.stop();
+  uint64_t cycles = stopwatch.diff_cycles() - benchmark::Stopwatch::s_stopwatch_overhead;
+  double delta = cycles / cpu_frequency;
+  std::cout << "Time spent allocating the result vector: " << delta << " seconds." << std::endl;
+#endif
 
   // Copy the primes that are compressed away.
   int pi = 0;
@@ -159,6 +183,9 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
     result[pi++] = prime;
   }
 
+#if USE_STOPWATCH
+  stopwatch.start();
+#endif
   // Calculate how many integers are not divisible by the first `compression` number of primes that are less than or equal max_value.
   integer_t sieve_rows = (max_value - compression_first_prime) / compression_primorial + 1;
 
@@ -171,11 +198,12 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
     throw std::bad_alloc();
   // This assumes that unused_bits is zero.
   std::memset(sieve, 0xff, sieve_size * sizeof(sieve_word_t));
-  if constexpr (unused_bits != 0)
-  {
-    for (sieve_word_t* word = sieve + words_per_row - 1; word < sieve + sieve_size; word += words_per_row)
-      *word = partial_mask;
-  }
+#if USE_STOPWATCH
+  stopwatch.stop();
+  cycles = stopwatch.diff_cycles() - benchmark::Stopwatch::s_stopwatch_overhead;
+  delta = cycles / cpu_frequency;
+  std::cout << "Time spent allocating and initializing sieve: " << delta << " seconds." << std::endl;
+#endif
 
   uint64_t const sqrt_max_value = std::sqrt(max_value);
   ASSERT(sqrt_max_value >= compression_first_prime_second_row);
@@ -289,6 +317,9 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
   //                      \__ column_word_offset = 2 (belonging to column 129) (called word_index for row 0).
   //
 
+#if USE_STOPWATCH
+  stopwatch.start();
+#endif
   // First do row 0.
   prime_t prime;
   int column = 0;
@@ -365,7 +396,16 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
       }
     }
   }
+#if USE_STOPWATCH
+  stopwatch.stop();
+  cycles = stopwatch.diff_cycles() - benchmark::Stopwatch::s_stopwatch_overhead;
+  delta = cycles / cpu_frequency;
+  std::cout << "Time spent sieving row0: " << delta << " seconds." << std::endl;
+#endif
 
+#if USE_STOPWATCH
+  stopwatch.start();
+#endif
   sieve_word_t* row_ptr = sieve;
   // Loop over all rows, starting with row 1 and find all primes up till
   // and including the first prime that is larger than sqrt_max_value.
@@ -424,6 +464,12 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
     ++row;
   }
 done:
+#if USE_STOPWATCH
+  stopwatch.stop();
+  cycles = stopwatch.diff_cycles() - benchmark::Stopwatch::s_stopwatch_overhead;
+  delta = cycles / cpu_frequency;
+  std::cout << "Time spent sieving row1-" << row << ": " << delta << " seconds." << std::endl;
+#endif
 
   // Find the word containing the last prime that is less than or equal max_value.
   int last_word_index = sieve_size;
@@ -432,6 +478,9 @@ done:
     ;
   int last_row = last_word_index / words_per_row;
 
+#if USE_STOPWATCH
+  stopwatch.start();
+#endif
   // Add all primes larger than sqrt(max_value) and less than or equal max_value.
   ++column;
   while (row < last_row)
@@ -452,6 +501,13 @@ done:
     ++row;
     column = 0;
   }
+#if USE_STOPWATCH
+  stopwatch.stop();
+  cycles = stopwatch.diff_cycles() - benchmark::Stopwatch::s_stopwatch_overhead;
+  delta = cycles / cpu_frequency;
+  std::cout << "Time spent adding all primes up till row " << last_row << ": " << delta << " seconds." << std::endl;
+#endif
+
   for (; column < compression_repeat; ++column)
   {
     int column_word_offset = column / sieve_word_bits;
@@ -476,6 +532,7 @@ done:
   return result;
 }
 
+#if 0
 #include <fstream>
 
 void writeVectorToDisk(std::string const& filename, std::vector<prime_t> const& vec)
@@ -496,10 +553,18 @@ void writeVectorToDisk(std::string const& filename, std::vector<prime_t> const& 
 
   ofs.close();
 }
+#endif
 
 int main()
 {
   Debug(NAMESPACE_DEBUG::init());
+
+#if USE_STOPWATCH
+  benchmark::Stopwatch stopwatch(cpu);          // Declare stopwatch and configure on which CPU it must run.
+
+  // Calibrate Stopwatch overhead.
+  stopwatch.calibrate_overhead(loopsize, minimum_of);
+#endif
 
   Dout(dc::notice, "compression = " << compression << "; compression_primorial = " << compression_primorial << "; compression_repeat = " << compression_repeat);
 
