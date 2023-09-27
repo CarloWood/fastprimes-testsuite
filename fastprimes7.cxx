@@ -31,22 +31,6 @@ int modular_inverse(integer_t n, integer_t m)
   return (x0 + m) % m;
 }
 
-// Called with n < m, n > 0 and m > 0.
-int modular_inverse2(integer_t n, integer_t m)
-{
-  integer_t x0 = 0, x1 = 1;
-  integer_t y0 = m, y1 = n;
-  do
-  {
-    integer_t q = y0 / y1;
-    std::tie(x0, x1) = std::make_tuple(x1, x0 - q * x1);
-    std::tie(y0, y1) = std::make_tuple(y1, y0 - q * y1);
-  }
-  while (y1 > 0);
-  // Ensure the result is positive.
-  return (x0 + m) % m;
-}
-
 constexpr std::array<prime_t, 7> small_primes = { 2, 3, 5, 7, 11, 13, 17 };
 
 // Returns pₙ# = p₁⋅p₂⋅p₃… pₙ
@@ -382,59 +366,64 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
     }
   }
 
+  sieve_word_t* row_ptr = sieve;
+  // Loop over all rows, starting with row 1 and find all primes up till
+  // and including the first prime that is larger than sqrt_max_value.
+  // For all primes less than or equal sqrt_max_value, remove multiples from the sieve.
   int row = 1;
-  column = 0;
   for (;;)
   {
-    for (; column < compression_repeat; ++column)
+    // Update row_ptr to point to the start of the current row.
+    row_ptr += words_per_row;
+    column = 0;
+    // Loop over all words in a row.
+    for (int word_index_offset = 0; word_index_offset < words_per_row; ++word_index_offset)
     {
-      int column_word_offset = column / sieve_word_bits;
-      sieve_word_t* next_word = sieve + row * words_per_row + column_word_offset;
-      sieve_word_t column_mask = sieve_word_t{1} << (column % sieve_word_bits);
-      if ((*next_word & column_mask))
+      // Loop over all bits in a word.
+      for (sieve_word_t column_mask = 1; column_mask != 0; column_mask <<= 1, ++column)
       {
-        prime = sieve_row_column_to_prime(row, column);
-        ASSERT(prime > compression_primorial);
-
-        ASSERT(prime == debug_primes[pi]);
-        result[pi++] = prime;
-
-        if (prime > sqrt_max_value)
-          break;
-
-        int const word_step = words_per_row * prime;
-        int compression_primorial_inverse = modular_inverse2(compression_primorial, prime);
-
-        for (int col = 0; col < compression_repeat; ++col)
+        // Did we find the next prime?
+        if ((row_ptr[word_index_offset] & column_mask))
         {
-          // In this loop prime >= row0[col] so we can simply subtract row0 from prime.
-          int first_row_with_prime_multiple = ((prime - row0[col]) * compression_primorial_inverse) % prime;
-          int col_word_offset = col / sieve_word_bits;
-          sieve_word_t col_mask  = sieve_word_t{1} << (col % sieve_word_bits);
+          prime = sieve_row_column_to_prime(row, column);
+          ASSERT(prime > compression_primorial);
 
-          for (int word_index = first_row_with_prime_multiple * words_per_row + col_word_offset;
-               word_index < sieve_size;
-               word_index += word_step)
+          ASSERT(prime == debug_primes[pi]);
+          result[pi++] = prime;
+
+          if (prime > sqrt_max_value)
+            goto done;
+
+          int const word_step = words_per_row * prime;
+          int compression_primorial_inverse = modular_inverse(compression_primorial, prime);
+
+          int col = 0;
+          for (int col_word_offset = 0; col_word_offset < words_per_row; ++col_word_offset)
           {
-            sieve[word_index] &= ~col_mask;
+            for (sieve_word_t col_mask = 1; col_mask != 0; col_mask <<= 1, ++col)
+            {
+              // In this loop prime >= row0[col] so we can simply subtract row0 from prime.
+              int first_row_with_prime_multiple = ((prime - row0[col]) * compression_primorial_inverse) % prime;
+              for (int wi = first_row_with_prime_multiple * words_per_row + col_word_offset; wi < sieve_size; wi += word_step)
+              {
+                sieve[wi] &= ~col_mask;
 #ifdef CWDEBUG
-            int debug_row = word_index / words_per_row;
-            int debug_col = (word_index % words_per_row) * sieve_word_bits + (col % sieve_word_bits);
-            prime_t debug_prime = sieve_row_column_to_prime(debug_row, debug_col);
-            ASSERT(debug_col == col);
-            ASSERT(debug_prime % prime == 0);
-//            Dout(dc::notice, "Loop2: setting " << debug_prime << " to 0 because it is " << (debug_prime / prime) << " * " << prime);
+                int debug_row = wi / words_per_row;
+                int debug_col = (wi % words_per_row) * sieve_word_bits + (col % sieve_word_bits);
+                prime_t debug_prime = sieve_row_column_to_prime(debug_row, debug_col);
+                ASSERT(debug_col == col);
+                ASSERT(debug_prime % prime == 0);
+//              Dout(dc::notice, "Loop2: setting " << debug_prime << " to 0 because it is " << (debug_prime / prime) << " * " << prime);
 #endif
+              }
+            }
           }
         }
       }
     }
-    if (prime > sqrt_max_value)
-      break;
-    // Next row.
     ++row;
-    column = 0;
   }
+done:
 
   // Find the word containing the last prime that is less than or equal max_value.
   int last_word_index = sieve_size;
