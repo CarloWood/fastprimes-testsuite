@@ -30,6 +30,8 @@ add_executable(fastprimes7 fastprimes7.cxx)
 target_link_libraries(fastprimes7 PRIVATE ${AICXX_OBJECTS_LIST})
 target_compile_options(fastprimes7 PRIVATE -Wall -Wextra)
 
+add_executable(atkin atkin.cxx)
+
 # Add executable target from table.cpp.
 add_executable(table_executable table.cpp)
 
