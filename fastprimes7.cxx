@@ -97,7 +97,7 @@ constexpr int compression_offset_multiplier = (row0.back() + compression_first_p
 
 inline prime_t sieve_row_column_to_prime(int row, int column)
 {
-  return row * compression_primorial + row0[column];
+  return row * static_cast<prime_t>(compression_primorial) + row0[column];
 }
 
 // If, for example, compression_repeat == 13 (which is never the case, but assume it was)
@@ -118,7 +118,7 @@ static_assert(unused_bits == 0);
 // Returns an upper bound on the number of primes that are smaller than or equal to n.
 // Just a random function that I thought matched quite well (for n > 1000 or so).
 // For n larger than 500,000,000 it is off on average 0.0079% (too large, thus).
-uint32_t calc_upper_bound_number_of_primes(integer_t n)
+uint64_t calc_upper_bound_number_of_primes(integer_t n)
 {
   double logn = std::log(n);
   ASSERT(logn > 4);
@@ -126,12 +126,12 @@ uint32_t calc_upper_bound_number_of_primes(integer_t n)
 }
 
 #ifdef CWDEBUG
-std::vector<prime_t> debug_primes;
+std::vector<uint32_t> debug_primes;
 void debug_init_primes()
 {
-  std::ifstream ifs("primes_till_1000000000", std::ios::binary);
+  std::ifstream ifs("primes_till_4000000000", std::ios::binary);
   if (!ifs.is_open()) {
-    DoutFatal(dc::fatal, "Failed to open file primes_till_1000000000 for reading.");
+    DoutFatal(dc::fatal, "Failed to open file primes_till_4000000000 for reading.");
   }
 
   // Read the size of the vector first.
@@ -140,7 +140,7 @@ void debug_init_primes()
 
   // Resize the vector and read the data.
   debug_primes.resize(size);
-  ifs.read(reinterpret_cast<char*>(debug_primes.data()), size * sizeof(prime_t));
+  ifs.read(reinterpret_cast<char*>(debug_primes.data()), size * sizeof(uint32_t));
 
   ifs.close();
 }
@@ -156,6 +156,8 @@ size_t const minimum_of = 3;
 // Returns all primes less than or equal max_value.
 std::vector<prime_t> calculate_primes(uint64_t max_value)
 {
+  std::vector<prime_t> result;
+
 #if USE_STOPWATCH
   benchmark::Stopwatch stopwatch(cpu);          // Declare stopwatch and configure on which CPU it must run.
 #endif
@@ -165,8 +167,15 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
   stopwatch.start();
 #endif
   // Pre-allocate the vector that is going to contain the primes.
-  uint32_t upper_bound_number_of_primes = calc_upper_bound_number_of_primes(max_value);
-  std::vector<prime_t> result(upper_bound_number_of_primes);
+  uint64_t upper_bound_number_of_primes = calc_upper_bound_number_of_primes(max_value);
+  try
+  {
+    result.resize(upper_bound_number_of_primes);
+  }
+  catch (std::bad_alloc const& error)
+  {
+    DoutFatal(dc::fatal, "Could not allocate the result vector for " << upper_bound_number_of_primes << " primes.");
+  }
 #if USE_STOPWATCH
   stopwatch.stop();
   uint64_t cycles = stopwatch.diff_cycles() - benchmark::Stopwatch::s_stopwatch_overhead;
@@ -175,8 +184,8 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
 #endif
 
   // Copy the primes that are compressed away.
-  int pi = 0;
-  for (; pi < compression;)
+  uint64_t pi = 0;
+  for (; pi < (uint64_t)compression;)
   {
     prime_t prime = small_primes[pi];
     ASSERT(prime == debug_primes[pi]);
@@ -493,7 +502,7 @@ done:
       if ((*next_word & column_mask))
       {
         prime = sieve_row_column_to_prime(row, column);
-        ASSERT(prime == debug_primes[pi]);
+        ASSERT(pi > uint64_t{189961811} || prime == debug_primes[pi]);    // We can't test primes larger than 3,999,999,979.
         result[pi++] = prime;
       }
     }
@@ -518,15 +527,14 @@ done:
       prime = sieve_row_column_to_prime(row, column);
       if (prime > max_value)
         break;
-      ASSERT(prime == debug_primes[pi]);
+      ASSERT(pi > uint64_t{189961811} || prime == debug_primes[pi]);    // We can't test primes larger than 3,999,999,979.
       result[pi++] = prime;
     }
   }
 
   std::free(sieve);
 
-  ASSERT(upper_bound_number_of_primes <= (uint32_t)std::numeric_limits<int>::max());
-  ASSERT(pi <= (int)upper_bound_number_of_primes); // Make sure it didn't overflow.
+  ASSERT(pi <= upper_bound_number_of_primes); // Make sure it didn't overflow.
 
   result.resize(pi);
   return result;
