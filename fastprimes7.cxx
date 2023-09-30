@@ -12,7 +12,7 @@
 #include <new>
 #include "debug.h"
 
-#define USE_STOPWATCH 0
+#define USE_STOPWATCH 1
 
 #if USE_STOPWATCH
 #include "cwds/benchmark.h"
@@ -21,7 +21,7 @@
 using prime_t = uint64_t;
 using integer_t = int64_t;
 using prime_index_t = int;
-using sieve_word_t = uint64_t;
+using sieve_word_t = uint32_t;
 
 int modular_inverse(integer_t n, integer_t m)
 {
@@ -57,7 +57,7 @@ constexpr int calc_repeat(prime_index_t n)
   return (small_primes[n - 1] - 1) * calc_repeat(n - 1);
 }
 
-constexpr int compression = 6;                                      // The number of primes to skip; must be less than 7 or things overflow.
+constexpr int compression = 5;                                      // The number of primes to skip; must be less than 7 or things overflow.
 constexpr int compression_primorial = calc_primorial(compression);  // The multiplication of the first `compression` primes.
 constexpr int compression_repeat = calc_repeat(compression);        // Same, but subtracting one from each prime first.
 constexpr int compression_first_prime = small_primes[compression];  // The first integer that is not divisible by any of the `compression` primes.
@@ -332,7 +332,7 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
   // First do row 0.
   prime_t prime;
   int column = 0;
-  for (int word_index = 0; word_index < words_per_row; ++word_index)
+  for (int word_index = 0; word_index < sieve_size; word_index += sieve_rows)
   {
     for (sieve_word_t column_mask = 1; column_mask != 0; column_mask <<= 1, ++column)
     {
@@ -344,12 +344,12 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
         ASSERT(prime == debug_primes[pi]);
         result[pi++] = prime;
 
-        int const word_step = words_per_row * prime;
+        int const word_step = prime;
         int const offset = compression_offset_multiplier * prime;
         int compression_primorial_inverse = modular_inverse(compression_primorial, prime);
 
         int col = 0;
-        for (int col_word_offset = 0; col_word_offset < words_per_row; ++col_word_offset)
+        for (int col_word_offset = 0; col_word_offset < sieve_size; col_word_offset += sieve_rows)
         {
           for (sieve_word_t col_mask = 1; col_mask != 0; col_mask <<= 1, ++col)
           {
@@ -388,12 +388,12 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
             first_row_with_prime_multiple64 *= compression_primorial_inverse;
             int first_row_with_prime_multiple = first_row_with_prime_multiple64 % prime;
 
-            for (int wi = first_row_with_prime_multiple * words_per_row + col_word_offset; wi < sieve_size; wi += word_step)
+            for (int wi = first_row_with_prime_multiple + col_word_offset; wi < sieve_rows + col_word_offset; wi += word_step)
             {
               sieve[wi] &= ~col_mask;
 #ifdef CWDEBUG
-              int debug_row = wi / words_per_row;
-              int debug_col = (wi % words_per_row) * sieve_word_bits + (col % sieve_word_bits);
+              int debug_row = wi % sieve_rows;
+              int debug_col = (wi / sieve_rows) * sieve_word_bits + (col % sieve_word_bits);
               prime_t debug_prime = sieve_row_column_to_prime(debug_row, debug_col);
               ASSERT(debug_col == col);
               ASSERT(debug_prime % prime == 0);
@@ -423,10 +423,10 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
   for (;;)
   {
     // Update row_ptr to point to the start of the current row.
-    row_ptr += words_per_row;
+    ++row_ptr;
     column = 0;
     // Loop over all words in a row.
-    for (int word_index_offset = 0; word_index_offset < words_per_row; ++word_index_offset)
+    for (int word_index_offset = 0; word_index_offset < sieve_size; word_index_offset += sieve_rows)
     {
       // Loop over all bits in a word.
       for (sieve_word_t column_mask = 1; column_mask != 0; column_mask <<= 1, ++column)
@@ -443,22 +443,22 @@ std::vector<prime_t> calculate_primes(uint64_t max_value)
           if (prime > sqrt_max_value)
             goto done;
 
-          int const word_step = words_per_row * prime;
+          int const word_step = prime;
           int compression_primorial_inverse = modular_inverse(compression_primorial, prime);
 
           int col = 0;
-          for (int col_word_offset = 0; col_word_offset < words_per_row; ++col_word_offset)
+          for (int col_word_offset = 0; col_word_offset < sieve_size; col_word_offset += sieve_rows)
           {
             for (sieve_word_t col_mask = 1; col_mask != 0; col_mask <<= 1, ++col)
             {
               // In this loop prime >= row0[col] so we can simply subtract row0 from prime.
               int first_row_with_prime_multiple = ((prime - row0[col]) * compression_primorial_inverse) % prime;
-              for (int wi = first_row_with_prime_multiple * words_per_row + col_word_offset; wi < sieve_size; wi += word_step)
+              for (int wi = first_row_with_prime_multiple + col_word_offset; wi < sieve_rows + col_word_offset; wi += word_step)
               {
                 sieve[wi] &= ~col_mask;
 #ifdef CWDEBUG
-                int debug_row = wi / words_per_row;
-                int debug_col = (wi % words_per_row) * sieve_word_bits + (col % sieve_word_bits);
+                int debug_row = wi % sieve_rows;
+                int debug_col = (wi / sieve_rows) * sieve_word_bits + (col % sieve_word_bits);
                 prime_t debug_prime = sieve_row_column_to_prime(debug_row, debug_col);
                 ASSERT(debug_col == col);
                 ASSERT(debug_prime % prime == 0);
@@ -481,11 +481,44 @@ done:
 #endif
 
   // Find the word containing the last prime that is less than or equal max_value.
-  int last_word_index = sieve_size;
-  while (sieve[--last_word_index] == 0 ||
-      sieve_row_column_to_prime(last_word_index / words_per_row, (last_word_index % words_per_row) * sieve_word_bits) > max_value)
-    ;
-  int last_row = last_word_index / words_per_row;
+  //
+  // For example, with sieve_size = 12 (words)
+  //                   sieve_rows = 4
+  //                   words_per_row = 3
+  //
+  //    cols: 0-63 | 64-127|128-191
+  //         wc:0  | wc:1  | wc:2
+  //   r: 0    0       4       8
+  //   r: 1    1       5       9
+  //   r: 2    2       6      10
+  //   r: 3    3       7      11 <-- word_index
+
+  int last_row = sieve_rows;
+  for (;;)
+  {
+    int last_word_index = sieve_size - sieve_rows + --last_row;
+    // Run over all columns, right-to-left.
+    for (int wc = words_per_row - 1; wc >= 0; --wc)
+    {
+      int col = wc * sieve_word_bits;
+      if (sieve[last_word_index] != 0 &&
+          sieve_row_column_to_prime(last_row, col) <= max_value)
+      {
+        for (sieve_word_t column_mask = 1; column_mask != 0; column_mask <<= 1, ++col)
+        {
+          if ((sieve[last_word_index] & column_mask))
+          {
+            if (sieve_row_column_to_prime(last_row, col) <= max_value)
+              goto found;
+            else
+              break;
+          }
+        }
+      }
+      last_word_index -= sieve_rows;
+    }
+  }
+found:
 
 #if USE_STOPWATCH
   stopwatch.start();
@@ -496,8 +529,8 @@ done:
   {
     for (; column < compression_repeat; ++column)
     {
-      int column_word_offset = column / sieve_word_bits;
-      sieve_word_t* next_word = sieve + row * words_per_row + column_word_offset;
+      int column_word_offset = (column / sieve_word_bits) * sieve_rows;
+      sieve_word_t* next_word = sieve + row + column_word_offset;
       sieve_word_t column_mask = sieve_word_t{1} << (column % sieve_word_bits);
       if ((*next_word & column_mask))
       {
@@ -519,8 +552,8 @@ done:
 
   for (; column < compression_repeat; ++column)
   {
-    int column_word_offset = column / sieve_word_bits;
-    sieve_word_t* next_word = sieve + row * words_per_row + column_word_offset;
+    int column_word_offset = (column / sieve_word_bits) * sieve_rows;
+    sieve_word_t* next_word = sieve + row + column_word_offset;
     sieve_word_t column_mask = sieve_word_t{1} << (column % sieve_word_bits);
     if ((*next_word & column_mask))
     {
@@ -576,8 +609,18 @@ int main()
 
   Dout(dc::notice, "compression = " << compression << "; compression_primorial = " << compression_primorial << "; compression_repeat = " << compression_repeat);
 
-  auto primes = calculate_primes(1000000000);
+
+  uint64_t max_value = 1000000000;
+  auto primes = calculate_primes(max_value);
   std::cout << "The " << primes.size() << "-th prime is " << primes.back() << std::endl;
-  ASSERT(primes.size() == 50847534);
-  ASSERT(primes.back() == 999999937);
+
+  int success = -1;
+  if (max_value == 1000000000)
+    success = (primes.size() == 50847534 && primes.back() == 999999937);
+  else if (max_value == 10000000000)
+    success = (primes.size() == 455052511 && primes.back() == 9999999967);
+  if (success == 1)
+    std::cout << "Success!" << std::endl;
+  else if (success == 0)
+    std::cerr << "ERROR!" << std::endl;
 }
