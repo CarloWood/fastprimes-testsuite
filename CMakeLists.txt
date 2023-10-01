@@ -26,11 +26,14 @@ include(AICxxSubmodules)
 add_executable(fastprimes6 fastprimes6.cxx)
 target_link_libraries(fastprimes6 PRIVATE ${AICXX_OBJECTS_LIST})
 
-add_executable(fastprimes7 fastprimes7.cxx)
-target_link_libraries(fastprimes7 PRIVATE ${AICXX_OBJECTS_LIST})
-target_compile_options(fastprimes7 PRIVATE -Wall -Wextra)
+add_executable(Nth-prime Nth-prime.cxx)
+target_link_libraries(Nth-prime PRIVATE ${AICXX_OBJECTS_LIST})
 
 add_executable(atkin atkin.cxx)
+
+add_executable(atkin3 atkin3.cxx)
+target_link_libraries(atkin3 PRIVATE ${AICXX_OBJECTS_LIST})
+target_compile_options(atkin3 PRIVATE -Wall -Wextra)
 
 # Add executable target from table.cpp.
 add_executable(table_executable table.cpp)
