@@ -65,9 +65,9 @@ struct Sieve
 std::vector<uint32_t> SieveOfAtkin()
 {
   std::vector<uint32_t> primes;
-  primes.reserve(189961812);
+//  primes.reserve(189961812);
 
-  constexpr uint64_t lmt = 4000000000;
+  constexpr uint64_t lmt = 1000; //4000000000;
   Sieve<lmt> sieve;
 
   for (uint64_t a = 1; a * a < lmt; ++a)
@@ -77,6 +77,8 @@ std::vector<uint32_t> SieveOfAtkin()
       uint64_t n = (4 * a * a) + (b * b);
       if (n <= lmt && (n % 12 == 1 || n % 12 == 5))
       {
+        if (n == 65)
+          std::cout << "WE GET HERE: " << a << ", " << b << std::endl;
         sieve.flip(n);
       }
       n = (3 * a * a) + (b * b);
@@ -154,6 +156,9 @@ int main()
   auto primes = SieveOfAtkin();
 
   std::cout << "The " << primes.size() << "-th prime number is " << primes.back() << std::endl;
-  std::cout << "Writing result to file primes_till_4000000000..." << std::endl;
-  writeVectorToDisk("primes_till_4000000000", primes);
+
+  for (auto p : primes)
+    std::cout << p << std::endl;
+//  std::cout << "Writing result to file primes_till_4000000000..." << std::endl;
+//  writeVectorToDisk("primes_till_4000000000", primes);
 }
