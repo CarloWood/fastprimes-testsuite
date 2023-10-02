@@ -5,8 +5,8 @@
 #include <map>
 #include "debug.h"
 
-using prime_t = primes::prime_t;
-using integer_t = primes::integer_t;
+using prime_t = utils::primes::prime_t;
+using integer_t = utils::primes::integer_t;
 
 utils::Primes gen(1000000);
 std::vector<prime_t> primes = gen.make_vector();
