@@ -1,13 +1,35 @@
 #include "sys.h"
 #include "utils/Primes.h"
+#include <fstream>
 #include <iostream>
 
 using integer_t = utils::Primes::integer_t;
 using prime_t = utils::Primes::prime_t;
 
+std::vector<uint32_t> debug_primes;
+void debug_init_primes()
+{
+  std::ifstream ifs("primes_till_4000000000", std::ios::binary);
+  if (!ifs.is_open()) {
+    DoutFatal(dc::fatal, "Failed to open file primes_till_4000000000 for reading.");
+  }
+
+  // Read the size of the vector first.
+  size_t size;
+  ifs.read(reinterpret_cast<char*>(&size), sizeof(size));
+
+  // Resize the vector and read the data.
+  debug_primes.resize(size);
+  ifs.read(reinterpret_cast<char*>(debug_primes.data()), size * sizeof(uint32_t));
+
+  ifs.close();
+}
+
 int main()
 {
-  integer_t n = 1000000000; // 500000000000;
+  debug_init_primes();
+
+  integer_t n = 1000000000000UL; // 500000000000;
   utils::Primes generator(n);
 
   uint64_t cnt = 0;
@@ -20,6 +42,8 @@ int main()
       if (p > n)
         break;
       last_prime = p;
+      if (!(cnt > uint64_t{189961811} || p == debug_primes[cnt]))
+        throw std::runtime_error("next_prime() returned the wrong prime!");
       ++cnt;
     }
   }
