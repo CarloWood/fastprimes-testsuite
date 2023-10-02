@@ -5,11 +5,10 @@
 #include <map>
 #include "debug.h"
 
-using Primes = utils::Primes;
-using prime_t = Primes::prime_t;
-using integer_t = Primes::integer_t;
+using prime_t = primes::prime_t;
+using integer_t = primes::integer_t;
 
-Primes gen(1000000);
+utils::Primes gen(1000000);
 std::vector<prime_t> primes = gen.make_vector();
 
 std::map<prime_t, int> factorize(integer_t n)
