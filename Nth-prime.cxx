@@ -1,10 +1,10 @@
 #include "sys.h"
-#include "utils/Primes.h"
+#include "fastprimes/Primes.h"
 #include <fstream>
 #include <iostream>
 
-using integer_t = utils::Primes::integer_t;
-using prime_t = utils::Primes::prime_t;
+using integer_t = fastprimes::Primes::integer_t;
+using prime_t = fastprimes::Primes::prime_t;
 
 std::vector<uint32_t> debug_primes;
 void debug_init_primes()
@@ -29,8 +29,8 @@ int main()
 {
   debug_init_primes();
 
-  integer_t n = 1000000000000UL; // 500000000000;
-  utils::Primes generator(n);
+  integer_t n = 1000000000UL; // 500000000000;
+  fastprimes::Primes generator(n);
 
   uint64_t cnt = 0;
   prime_t last_prime;

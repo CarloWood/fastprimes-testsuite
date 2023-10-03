@@ -10,3 +10,7 @@
 	path = utils
 	url = https://github.com/CarloWood/ai-utils.git
 	branch = master
+[submodule "fastprimes"]
+	path = fastprimes
+	url = https://github.com/CarloWood/fastprimes.git
+	branch = master

@@ -1,14 +1,14 @@
 #include "sys.h"
-#include "utils/Primes.h"
+#include "fastprimes/Primes.h"
 #include <iostream>
 #include <cmath>
 #include <map>
 #include "debug.h"
 
-using prime_t = utils::primes::prime_t;
-using integer_t = utils::primes::integer_t;
+using prime_t = fastprimes::prime_t;
+using integer_t = fastprimes::integer_t;
 
-utils::Primes gen(1000000);
+fastprimes::Primes gen(1000000);
 std::vector<prime_t> primes = gen.make_vector();
 
 std::map<prime_t, int> factorize(integer_t n)
