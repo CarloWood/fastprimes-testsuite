@@ -14,3 +14,11 @@
 	path = fastprimes
 	url = https://github.com/CarloWood/fastprimes.git
 	branch = master
+[submodule "threadpool"]
+	path = threadpool
+	url = https://github.com/CarloWood/threadpool.git
+	branch = master
+[submodule "threadsafe"]
+	path = threadsafe
+	url = https://github.com/CarloWood/threadsafe.git
+	branch = master

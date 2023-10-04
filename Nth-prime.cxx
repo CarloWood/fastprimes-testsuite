@@ -1,10 +1,13 @@
 #include "sys.h"
+#include "utils/ctz.h"
 #include "fastprimes/Primes.h"
+#include "threadpool/AIThreadPool.h"
+#include "cwds/benchmark.h"
 #include <fstream>
 #include <iostream>
 
-using integer_t = fastprimes::Primes::integer_t;
-using prime_t = fastprimes::Primes::prime_t;
+using integer_t = fastprimes::integer_t;
+using prime_t = fastprimes::prime_t;
 
 std::vector<uint32_t> debug_primes;
 void debug_init_primes()
@@ -27,10 +30,22 @@ void debug_init_primes()
 
 int main()
 {
+  Debug(NAMESPACE_DEBUG::init());
   debug_init_primes();
 
-  integer_t n = 1000000000UL; // 500000000000;
-  fastprimes::Primes generator(n);
+  constexpr int capacity = 90;
+
+  AIThreadPool thread_pool(30);
+  AIQueueHandle handler = thread_pool.new_queue(capacity);
+
+  integer_t n = 1000000000UL; // 1000000000000UL;
+  fastprimes::Primes generator(n, handler);
+
+  benchmark::Stopwatch stopwatch(0);
+  double const cpu_frequency = 3612059050.0;        // In cycles per second.
+
+  std::cout << "Starting reading out sieve..." << std::endl;
+  stopwatch.start();
 
   uint64_t cnt = 0;
   prime_t last_prime;
@@ -50,6 +65,11 @@ int main()
   catch (std::out_of_range const&)
   {
   }
+
+  stopwatch.stop();
+  uint64_t cycles = stopwatch.diff_cycles() - benchmark::Stopwatch::s_stopwatch_overhead;
+  float delta = cycles / cpu_frequency;
+  std::cout << "Time spent calling next_prime: " << delta << " seconds." << std::endl;
 
   std::cout << "The " << cnt << "-th prime is " << last_prime << std::endl;
 }

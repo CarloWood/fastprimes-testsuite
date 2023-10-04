@@ -1,5 +1,6 @@
 #include "sys.h"
 #include "fastprimes/Primes.h"
+#include "threadpool/AIThreadPool.h"
 #include <iostream>
 #include <cmath>
 #include <map>
@@ -8,10 +9,7 @@
 using prime_t = fastprimes::prime_t;
 using integer_t = fastprimes::integer_t;
 
-fastprimes::Primes gen(1000000);
-std::vector<prime_t> primes = gen.make_vector();
-
-std::map<prime_t, int> factorize(integer_t n)
+std::map<prime_t, int> factorize(std::vector<prime_t> const& primes, integer_t n)
 {
   std::map<prime_t, int> result;
   for (prime_t p : primes)
@@ -28,9 +26,9 @@ std::map<prime_t, int> factorize(integer_t n)
   return result;
 }
 
-bool is_square_free(integer_t n)
+bool is_square_free(std::vector<prime_t> const& primes, integer_t n)
 {
-  auto pem = factorize(n);
+  auto pem = factorize(primes, n);
   bool square_free = true;
   for (auto pe : pem)
     if (pe.second > 1)
@@ -77,6 +75,14 @@ int main()
 {
   Debug(NAMESPACE_DEBUG::init());
 
+  constexpr int capacity = 32;
+
+  AIThreadPool thread_pool;
+  AIQueueHandle handler = thread_pool.new_queue(capacity);
+
+  fastprimes::Primes gen(1000000, handler);
+  std::vector<prime_t> primes = gen.make_vector();
+
   // 4x^2 + y^2 = n  -->
   //
   // x <= sqrt(n - 1) / 4;
@@ -87,7 +93,7 @@ int main()
       std::cout << n << std::endl;
     //if ((n % 12 != 1 && n % 12 != 5))
     //  continue;
-    if (!is_square_free(n))
+    if (!is_square_free(primes, n))
       continue;
 
     [[maybe_unused]] int solutions = 0;
