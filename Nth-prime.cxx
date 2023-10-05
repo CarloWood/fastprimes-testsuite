@@ -38,13 +38,13 @@ int main()
   //Debug(NAMESPACE_DEBUG::init());
   debug_init_primes();
 
-  constexpr int capacity = 2;
+  constexpr int capacity = 32;
 
-  AIThreadPool thread_pool(4);
+  AIThreadPool thread_pool;
   AIQueueHandle handler = thread_pool.new_queue(capacity);
 
-  integer_t n = 100000000UL; // 1000000000000UL;
-  fastprimes::Primes generator(n, handler);
+  integer_t n = 1000000000UL; // 1000000000000UL;
+  fastprimes::Primes generator(n, 30, handler);
 
 #if USE_STOPWATCH
   benchmark::Stopwatch stopwatch(0);

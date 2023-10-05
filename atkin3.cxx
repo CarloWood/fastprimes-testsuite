@@ -77,10 +77,10 @@ int main()
 
   constexpr int capacity = 32;
 
-  AIThreadPool thread_pool(4);
+  AIThreadPool thread_pool;
   AIQueueHandle handler = thread_pool.new_queue(capacity);
 
-  fastprimes::Primes gen(1000000, handler);
+  fastprimes::Primes gen(1000000, 4, handler);
 
   std::cout << "Running make_vector()" << std::endl;
   std::vector<prime_t> primes = gen.make_vector();
