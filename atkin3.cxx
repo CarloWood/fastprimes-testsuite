@@ -77,11 +77,14 @@ int main()
 
   constexpr int capacity = 32;
 
-  AIThreadPool thread_pool;
+  AIThreadPool thread_pool(4);
   AIQueueHandle handler = thread_pool.new_queue(capacity);
 
   fastprimes::Primes gen(1000000, handler);
+
+  std::cout << "Running make_vector()" << std::endl;
   std::vector<prime_t> primes = gen.make_vector();
+  std::cout << "Done" << std::endl;
 
   // 4x^2 + y^2 = n  -->
   //

@@ -2,9 +2,14 @@
 #include "utils/ctz.h"
 #include "fastprimes/Primes.h"
 #include "threadpool/AIThreadPool.h"
-#include "cwds/benchmark.h"
 #include <fstream>
 #include <iostream>
+
+#define USE_STOPWATCH defined(__OPTIMIZE__)
+
+#if USE_STOPWATCH
+#include "cwds/benchmark.h"
+#endif
 
 using integer_t = fastprimes::integer_t;
 using prime_t = fastprimes::prime_t;
@@ -30,22 +35,26 @@ void debug_init_primes()
 
 int main()
 {
-  Debug(NAMESPACE_DEBUG::init());
+  //Debug(NAMESPACE_DEBUG::init());
   debug_init_primes();
 
-  constexpr int capacity = 90;
+  constexpr int capacity = 2;
 
-  AIThreadPool thread_pool(30);
+  AIThreadPool thread_pool(4);
   AIQueueHandle handler = thread_pool.new_queue(capacity);
 
-  integer_t n = 1000000000UL; // 1000000000000UL;
+  integer_t n = 100000000UL; // 1000000000000UL;
   fastprimes::Primes generator(n, handler);
 
+#if USE_STOPWATCH
   benchmark::Stopwatch stopwatch(0);
   double const cpu_frequency = 3612059050.0;        // In cycles per second.
+#endif
 
   std::cout << "Starting reading out sieve..." << std::endl;
+#if USE_STOPWATCH
   stopwatch.start();
+#endif
 
   uint64_t cnt = 0;
   prime_t last_prime;
@@ -66,10 +75,12 @@ int main()
   {
   }
 
+#if USE_STOPWATCH
   stopwatch.stop();
   uint64_t cycles = stopwatch.diff_cycles() - benchmark::Stopwatch::s_stopwatch_overhead;
   float delta = cycles / cpu_frequency;
   std::cout << "Time spent calling next_prime: " << delta << " seconds." << std::endl;
+#endif
 
   std::cout << "The " << cnt << "-th prime is " << last_prime << std::endl;
 }
