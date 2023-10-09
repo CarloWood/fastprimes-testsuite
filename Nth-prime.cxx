@@ -1,5 +1,4 @@
 #include "sys.h"
-#include "utils/ctz.h"
 #include "fastprimes/Primes.h"
 #include "threadpool/AIThreadPool.h"
 #include <fstream>
@@ -35,7 +34,7 @@ void debug_init_primes()
 
 int main()
 {
-  //Debug(NAMESPACE_DEBUG::init());
+  Debug(NAMESPACE_DEBUG::init());
   debug_init_primes();
 
   constexpr int capacity = 32;
