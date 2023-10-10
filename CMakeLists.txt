@@ -32,6 +32,9 @@ target_link_libraries(Nth-prime PRIVATE ${AICXX_OBJECTS_LIST})
 add_executable(series series.cxx)
 target_link_libraries(series PRIVATE ${AICXX_OBJECTS_LIST})
 
+add_executable(identity identity.cxx)
+target_link_libraries(identity PRIVATE ${AICXX_OBJECTS_LIST})
+
 add_executable(atkin atkin.cxx)
 
 add_executable(atkin3 atkin3.cxx)
