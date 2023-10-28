@@ -41,6 +41,9 @@ add_executable(atkin3 atkin3.cxx)
 target_link_libraries(atkin3 PRIVATE ${AICXX_OBJECTS_LIST})
 target_compile_options(atkin3 PRIVATE -Wall -Wextra)
 
+add_executable(sum_first_n_primes sum_first_n_primes.cxx)
+target_link_libraries(sum_first_n_primes PRIVATE ${AICXX_OBJECTS_LIST})
+
 # Add executable target from table.cpp.
 add_executable(table_executable table.cpp)
 
