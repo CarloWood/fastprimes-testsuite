@@ -6,7 +6,6 @@
 int main(int argc, char* argv[])
 {
   Debug(NAMESPACE_DEBUG::init());
-  Debug(dc::notice.off());
 
   constexpr int num_threads = 8;
   constexpr int capacity = num_threads + 2;
